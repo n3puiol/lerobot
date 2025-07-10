@@ -61,7 +61,7 @@ import safetensors
 import torch
 import torch.nn.functional as F  # noqa: N812
 from torch import Tensor, nn
-from transformers import AutoProcessor
+from transformers import AutoProcessor, AutoModelForImageTextToText
 
 from lerobot.constants import ACTION, OBS_STATE
 from lerobot.policies.normalize import (
@@ -444,6 +444,33 @@ class SmolVLAPolicy(PreTrainedPolicy):
             self._queues[ACTION].extend(actions.transpose(0, 1)[: self.config.n_action_steps])
 
         return self._queues[ACTION].popleft()
+
+    @torch.no_grad()
+    def prompt_vlm(self, batch: dict[str, Tensor]) -> str:
+        self.eval()
+        batch = self._prepare_batch(batch)
+        images, img_masks = self.prepare_images(batch)
+        state = self.prepare_state(batch)
+        lang_tokens, lang_masks = self.prepare_language(batch)
+
+        outputs_embed, _ = self.model.sample_vlm(images, img_masks, lang_tokens, lang_masks, state)
+
+        processor = self.model.vlm_with_expert.processor
+
+        if outputs_embed.dtype in [torch.long, torch.int32, torch.int64]:
+            generated_text = processor.batch_decode(
+                outputs_embed,
+                skip_special_tokens=True,
+            )[0]
+        else:
+            # If outputs_embed contains logits, convert to tokens first
+            generated_ids = outputs_embed.argmax(dim=-1)
+            generated_text = processor.batch_decode(
+                generated_ids,
+                skip_special_tokens=True,
+            )[0]
+
+        return generated_text
 
     def forward(self, batch: dict[str, Tensor], noise=None, time=None) -> dict[str, Tensor]:
         """Do a full training forward pass to compute the loss"""
@@ -903,6 +930,29 @@ class VLAFlowMatching(nn.Module):
             x_t += dt * v_t
             time += dt
         return x_t
+
+    def sample_vlm(self, images, img_masks, lang_tokens, lang_masks, state, noise=None):
+        bsize = state.shape[0]
+        device = state.device
+
+        if noise is None:
+            actions_shape = (bsize, self.config.chunk_size, self.config.max_action_dim)
+            noise = self.sample_noise(actions_shape, device)
+
+        prefix_embs, prefix_pad_masks, prefix_att_masks = self.embed_prefix(
+            images, img_masks, lang_tokens, lang_masks, state=state
+        )
+        prefix_att_2d_masks = make_att_2d_masks(prefix_pad_masks, prefix_att_masks)
+        prefix_position_ids = torch.cumsum(prefix_pad_masks, dim=1) - 1
+        # Compute image and language key value cache
+        return self.vlm_with_expert.forward(
+            attention_mask=prefix_att_2d_masks,
+            position_ids=prefix_position_ids,
+            past_key_values=None,
+            inputs_embeds=[prefix_embs, None],
+            use_cache=self.config.use_cache,
+            fill_kv_cache=True,
+        )
 
     def denoise_step(
         self,
