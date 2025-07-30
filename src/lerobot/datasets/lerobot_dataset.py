@@ -1099,13 +1099,13 @@ class MultiLeRobotDataset(torch.utils.data.Dataset):
                 "Multiple datasets were provided but they had no keys common to all of them. "
                 "The multi-dataset functionality currently only keeps common keys."
             )
-        for repo_id, ds in zip(self.repo_ids, self._datasets, strict=True):
-            extra_keys = set(ds.features).difference(intersection_features)
-            logging.warning(
-                f"keys {extra_keys} of {repo_id} were disabled as they are not contained in all the "
-                "other datasets."
-            )
-            self.disabled_features.update(extra_keys)
+        # for repo_id, ds in zip(self.repo_ids, self._datasets, strict=True):
+        #     extra_keys = set(ds.features).difference(intersection_features)
+        #     logging.warning(
+        #         f"keys {extra_keys} of {repo_id} were disabled as they are not contained in all the "
+        #         "other datasets."
+        #     )
+        #     self.disabled_features.update(extra_keys)
 
         self.image_transforms = image_transforms
         self.delta_timestamps = delta_timestamps
