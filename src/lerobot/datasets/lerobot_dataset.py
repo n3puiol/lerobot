@@ -1186,6 +1186,21 @@ class MultiLeRobotDataset(torch.utils.data.Dataset):
         return sum(d.num_episodes for d in self._datasets)
 
     @property
+    def action_dim(self) -> int:
+        """Returns the action dimension of the dataset. Assumes that all datasets have the same action dimension."""
+        action_key = None
+        sample_keys = list(self.features.keys())
+
+        for key in sample_keys:
+            if "action" in key.lower():
+                action_key = key
+                break
+        if action_key is None:
+            raise ValueError(f"Could not find action key in dataset. Available keys: {sample_keys}")
+
+        return self._datasets[0].features[action_key]['shape'][0]
+
+    @property
     def tolerance_s(self) -> float:
         """Tolerance in seconds used to discard loaded frames when their timestamps
         are not close enough from the requested frames. It is only used when `delta_timestamps`
