@@ -82,13 +82,17 @@ def make_dataset(cfg: TrainPipelineConfig) -> LeRobotDataset | MultiLeRobotDatas
         ImageTransforms(cfg.dataset.image_transforms) if cfg.dataset.image_transforms.enable else None
     )
 
-    if isinstance(cfg.dataset.repo_id, str):
-        ds_meta = LeRobotDatasetMetadata(
-            cfg.dataset.repo_id, root=cfg.dataset.root, revision=cfg.dataset.revision
-        )
-        delta_timestamps = resolve_delta_timestamps(cfg.policy, ds_meta)
+    repo_ids = cfg.dataset.repo_id.split(",")
+    repo_ids = [repo_id.strip() for repo_id in repo_ids if repo_id.strip()]
+
+    ds_meta = LeRobotDatasetMetadata(
+        repo_ids[0], root=cfg.dataset.root, revision=cfg.dataset.revision
+    )
+    delta_timestamps = resolve_delta_timestamps(cfg.policy, ds_meta)
+
+    if len(repo_ids) == 1:
         dataset = LeRobotDataset(
-            cfg.dataset.repo_id,
+            repo_ids[0],
             root=cfg.dataset.root,
             episodes=cfg.dataset.episodes,
             delta_timestamps=delta_timestamps,
@@ -97,11 +101,9 @@ def make_dataset(cfg: TrainPipelineConfig) -> LeRobotDataset | MultiLeRobotDatas
             video_backend=cfg.dataset.video_backend,
         )
     else:
-        raise NotImplementedError("The MultiLeRobotDataset isn't supported for now.")
         dataset = MultiLeRobotDataset(
-            cfg.dataset.repo_id,
-            # TODO(aliberts): add proper support for multi dataset
-            # delta_timestamps=delta_timestamps,
+            repo_ids=repo_ids,
+            delta_timestamps=delta_timestamps,
             image_transforms=image_transforms,
             video_backend=cfg.dataset.video_backend,
         )
