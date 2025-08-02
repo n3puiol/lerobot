@@ -78,11 +78,11 @@ CODEBASE_VERSION = "v2.1"
 
 class LeRobotDatasetMetadata:
     def __init__(
-        self,
-        repo_id: str,
-        root: str | Path | None = None,
-        revision: str | None = None,
-        force_cache_sync: bool = False,
+            self,
+            repo_id: str,
+            root: str | Path | None = None,
+            revision: str | None = None,
+            force_cache_sync: bool = False,
     ):
         self.repo_id = repo_id
         self.revision = revision if revision else CODEBASE_VERSION
@@ -113,9 +113,9 @@ class LeRobotDatasetMetadata:
             self.stats = aggregate_stats(list(self.episodes_stats.values()))
 
     def pull_from_repo(
-        self,
-        allow_patterns: list[str] | str | None = None,
-        ignore_patterns: list[str] | str | None = None,
+            self,
+            allow_patterns: list[str] | str | None = None,
+            ignore_patterns: list[str] | str | None = None,
     ) -> None:
         snapshot_download(
             self.repo_id,
@@ -245,11 +245,11 @@ class LeRobotDatasetMetadata:
         append_jsonlines(task_dict, self.root / TASKS_PATH)
 
     def save_episode(
-        self,
-        episode_index: int,
-        episode_length: int,
-        episode_tasks: list[str],
-        episode_stats: dict[str, dict],
+            self,
+            episode_index: int,
+            episode_length: int,
+            episode_tasks: list[str],
+            episode_stats: dict[str, dict],
     ) -> None:
         self.info["total_episodes"] += 1
         self.info["total_frames"] += episode_length
@@ -298,13 +298,13 @@ class LeRobotDatasetMetadata:
 
     @classmethod
     def create(
-        cls,
-        repo_id: str,
-        fps: int,
-        features: dict,
-        robot_type: str | None = None,
-        root: str | Path | None = None,
-        use_videos: bool = True,
+            cls,
+            repo_id: str,
+            fps: int,
+            features: dict,
+            robot_type: str | None = None,
+            root: str | Path | None = None,
+            use_videos: bool = True,
     ) -> "LeRobotDatasetMetadata":
         """Creates metadata for a LeRobotDataset."""
         obj = cls.__new__(cls)
@@ -329,18 +329,18 @@ class LeRobotDatasetMetadata:
 
 class LeRobotDataset(torch.utils.data.Dataset):
     def __init__(
-        self,
-        repo_id: str,
-        root: str | Path | None = None,
-        episodes: list[int] | None = None,
-        image_transforms: Callable | None = None,
-        delta_timestamps: dict[list[float]] | None = None,
-        tolerance_s: float = 1e-4,
-        revision: str | None = None,
-        force_cache_sync: bool = False,
-        download_videos: bool = True,
-        video_backend: str | None = None,
-        batch_encoding_size: int = 1,
+            self,
+            repo_id: str,
+            root: str | Path | None = None,
+            episodes: list[int] | None = None,
+            image_transforms: Callable | None = None,
+            delta_timestamps: dict[list[float]] | None = None,
+            tolerance_s: float = 1e-4,
+            revision: str | None = None,
+            force_cache_sync: bool = False,
+            download_videos: bool = True,
+            video_backend: str | None = None,
+            batch_encoding_size: int = 1,
     ):
         """
         2 modes are available for instantiating this class, depending on 2 different use cases:
@@ -497,16 +497,16 @@ class LeRobotDataset(torch.utils.data.Dataset):
             self.delta_indices = get_delta_indices(self.delta_timestamps, self.fps)
 
     def push_to_hub(
-        self,
-        branch: str | None = None,
-        tags: list | None = None,
-        license: str | None = "apache-2.0",
-        tag_version: bool = True,
-        push_videos: bool = True,
-        private: bool = False,
-        allow_patterns: list[str] | str | None = None,
-        upload_large_folder: bool = False,
-        **card_kwargs,
+            self,
+            branch: str | None = None,
+            tags: list | None = None,
+            license: str | None = "apache-2.0",
+            tag_version: bool = True,
+            push_videos: bool = True,
+            private: bool = False,
+            allow_patterns: list[str] | str | None = None,
+            upload_large_folder: bool = False,
+            **card_kwargs,
     ) -> None:
         ignore_patterns = ["images/"]
         if not push_videos:
@@ -553,9 +553,9 @@ class LeRobotDataset(torch.utils.data.Dataset):
             hub_api.create_tag(self.repo_id, tag=CODEBASE_VERSION, revision=branch, repo_type="dataset")
 
     def pull_from_repo(
-        self,
-        allow_patterns: list[str] | str | None = None,
-        ignore_patterns: list[str] | str | None = None,
+            self,
+            allow_patterns: list[str] | str | None = None,
+            ignore_patterns: list[str] | str | None = None,
     ) -> None:
         snapshot_download(
             self.repo_id,
@@ -659,9 +659,9 @@ class LeRobotDataset(torch.utils.data.Dataset):
         return query_indices, padding
 
     def _get_query_timestamps(
-        self,
-        current_ts: float,
-        query_indices: dict[str, list[int]] | None = None,
+            self,
+            current_ts: float,
+            query_indices: dict[str, list[int]] | None = None,
     ) -> dict[str, list[float]]:
         query_timestamps = {}
         for key in self.meta.video_keys:
@@ -1002,18 +1002,18 @@ class LeRobotDataset(torch.utils.data.Dataset):
 
     @classmethod
     def create(
-        cls,
-        repo_id: str,
-        fps: int,
-        features: dict,
-        root: str | Path | None = None,
-        robot_type: str | None = None,
-        use_videos: bool = True,
-        tolerance_s: float = 1e-4,
-        image_writer_processes: int = 0,
-        image_writer_threads: int = 0,
-        video_backend: str | None = None,
-        batch_encoding_size: int = 1,
+            cls,
+            repo_id: str,
+            fps: int,
+            features: dict,
+            root: str | Path | None = None,
+            robot_type: str | None = None,
+            use_videos: bool = True,
+            tolerance_s: float = 1e-4,
+            image_writer_processes: int = 0,
+            image_writer_threads: int = 0,
+            video_backend: str | None = None,
+            batch_encoding_size: int = 1,
     ) -> "LeRobotDataset":
         """Create a LeRobot Dataset from scratch in order to record data."""
         obj = cls.__new__(cls)
@@ -1057,15 +1057,15 @@ class MultiLeRobotDataset(torch.utils.data.Dataset):
     """
 
     def __init__(
-        self,
-        repo_ids: list[str],
-        root: str | Path | None = None,
-        episodes: dict | None = None,
-        image_transforms: Callable | None = None,
-        delta_timestamps: dict[list[float]] | None = None,
-        tolerances_s: dict | None = None,
-        download_videos: bool = True,
-        video_backend: str | None = None,
+            self,
+            repo_ids: list[str],
+            root: str | Path | None = None,
+            episodes: dict | None = None,
+            image_transforms: Callable | None = None,
+            delta_timestamps: dict[list[float]] | None = None,
+            tolerances_s: dict | None = None,
+            download_videos: bool = True,
+            video_backend: str | None = None,
     ):
         super().__init__()
         self.repo_ids = repo_ids
@@ -1113,6 +1113,16 @@ class MultiLeRobotDataset(torch.utils.data.Dataset):
         # with multiple robots of different ranges. Instead we should have one normalization
         # per robot.
         self.stats = aggregate_stats([dataset.meta.stats for dataset in self._datasets])
+
+    @property
+    def metas(self) -> list[LeRobotDatasetMetadata]:
+        """Return the metadata of the underlying datasets."""
+        return [dataset.meta for dataset in self._datasets]
+
+    @property
+    def meta(self) -> LeRobotDatasetMetadata:
+        """Return the metadata of the first underlying dataset."""
+        return self._datasets[0].meta
 
     @property
     def repo_id_to_index(self):
