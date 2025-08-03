@@ -112,7 +112,7 @@ def train(cfg: TrainPipelineConfig):
 
     if cfg.wandb.enable and cfg.wandb.project:
         cfg_copy = copy.deepcopy(cfg)
-        cfg_copy.dataset.repo_id = cfg_copy.dataset.repo_id[:64]
+        cfg_copy.dataset.repo_id = cfg_copy.dataset.repo_id[:63]
         wandb_logger = WandBLogger(cfg_copy)
     else:
         wandb_logger = None
