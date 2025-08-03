@@ -111,7 +111,9 @@ def train(cfg: TrainPipelineConfig):
     logging.info(pformat(cfg.to_dict()))
 
     if cfg.wandb.enable and cfg.wandb.project:
-        wandb_logger = WandBLogger(cfg)
+        cfg_copy = copy.deepcopy(cfg)
+        cfg_copy.dataset.repo_id = cfg_copy.dataset.repo_id[:64]
+        wandb_logger = WandBLogger(cfg_copy)
     else:
         wandb_logger = None
         logging.info(colored("Logs will be saved locally.", "yellow", attrs=["bold"]))

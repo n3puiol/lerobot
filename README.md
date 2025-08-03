@@ -75,6 +75,28 @@
 
 ---
 
+## About this fork
+
+This is a fork of LeRobot with some added features and modifications. I am making this fork public as it might be useful for others. 
+The original repository can be found at [huggingface/lerobot](https://github.com/huggingface/lerobot).
+
+## Added Features
+
+### Multiple dataset training support
+
+It is possible to train a LeRobot policy with multiple datasets simply by separating them with a comma in the `dataset.repo_id` flag.
+
+#### Things to note
+
+- Currently, the datasets need to have exactly the same column names and definitions.
+
+#### Example Libero training
+```bash
+python -m lerobot.scripts.train --dataset.repo_id=aopolin-lv/libero_spatial_no_noops_lerobot_v21,aopolin-lv/libero_object_no_noops_lerobot_v21 --policy.type=smolvla --batch_size=64 --steps=20000 --output_dir=outputs/smolvla_libero_test --job_name=smolvla_training_libero --policy.device=cuda --policy.repo_id=n3puiol/smolvla_libero --wandb.enable=false
+```
+
+---
+
 🤗 LeRobot aims to provide models, datasets, and tools for real-world robotics in PyTorch. The goal is to lower the barrier to entry to robotics so that everyone can contribute and benefit from sharing datasets and pretrained models.
 
 🤗 LeRobot contains state-of-the-art approaches that have been shown to transfer to the real-world with a focus on imitation learning and reinforcement learning.
