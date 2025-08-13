@@ -75,6 +75,7 @@ from lerobot.policies.utils import (
     populate_queues,
 )
 from lerobot.utils.utils import get_safe_dtype
+from models.ac_predictor import vit_ac_predictor
 
 # Matches ".soNNN", optionally followed by "-something", up to the "_buffer_" marker
 _VARIANT_RE = re.compile(r"\.so\d+(?:-[\w]+)?_buffer_")
@@ -351,6 +352,15 @@ class SmolVLAPolicy(PreTrainedPolicy):
         self.model = VLAFlowMatching(config)
         self.reset()
 
+        self.predictor = vit_ac_predictor(
+            img_size=(512, 512),
+            depth=4,
+            action_embed_dim=2,
+            predictor_embed_dim=768,
+            patch_size=16,
+            num_frames=15
+        ).to(self.model.vlm_with_expert.vlm.device)
+
     def reset(self):
         """This should be called whenever the environment is reset."""
         self._queues = {
@@ -461,6 +471,22 @@ class SmolVLAPolicy(PreTrainedPolicy):
         losses = self.model.forward(images, img_masks, lang_tokens, lang_masks, state, actions, noise, time)
         loss_dict["losses_after_forward"] = losses.clone()
 
+        vision_model = self.model.vlm_with_expert.vlm.model.vision_model
+        image_hidden_states = (
+            vision_model(
+                pixel_values=images[0].to(dtype=vision_model.dtype),
+            )
+            .last_hidden_state
+        ).float()
+        p_hidden_states = image_hidden_states[:-1]
+        p_action = batch[ACTION][:-1, :1, :]
+        p_state = batch[OBS_STATE][:-1]
+
+        prediction = self.predictor(p_hidden_states, p_action, p_state)
+        loss_pred = torch.nn.functional.l1_loss(prediction, image_hidden_states[1:])
+
+        # TODO: implement rollout loss
+
         if actions_is_pad is not None:
             in_episode_bound = ~actions_is_pad
             losses = losses * in_episode_bound.unsqueeze(-1)
@@ -471,7 +497,7 @@ class SmolVLAPolicy(PreTrainedPolicy):
         loss_dict["losses_after_rm_padding"] = losses.clone()
 
         # For backward pass
-        loss = losses.mean()
+        loss = losses.mean() + loss_pred
         # For backward pass
         loss_dict["loss"] = loss.item()
         return loss, loss_dict
