@@ -143,7 +143,7 @@ class SmolVLAConfig(PreTrainedConfig):
 
     @property
     def observation_delta_indices(self) -> list:
-        return [0]
+        return list(range(self.chunk_size))
 
     @property
     def action_delta_indices(self) -> list:

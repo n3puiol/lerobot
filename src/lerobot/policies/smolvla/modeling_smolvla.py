@@ -90,7 +90,7 @@ def canonicalise(k: str) -> str:
 
 
 def standardise_state_dict(
-    checkpoint: dict[str, torch.Tensor], ref_keys: set[str], *, verbose: bool = True
+        checkpoint: dict[str, torch.Tensor], ref_keys: set[str], *, verbose: bool = True
 ) -> tuple[dict[str, torch.Tensor], list[str]]:
     """
     • Re-keys `checkpoint ` so that every entry matches the *reference* key set.
@@ -144,11 +144,11 @@ def rename_checkpoint_keys(checkpoint: dict, rename_str: str):
 
 
 def load_smolvla(
-    model: torch.nn.Module,
-    filename: str | os.PathLike,
-    *,
-    device: str = "cpu",
-    checkpoint_keys_mapping: str = "",
+        model: torch.nn.Module,
+        filename: str | os.PathLike,
+        *,
+        device: str = "cpu",
+        checkpoint_keys_mapping: str = "",
 ) -> torch.nn.Module:
     state_dict = safetensors.torch.load_file(filename, device=device)
 
@@ -175,7 +175,7 @@ def load_smolvla(
 
 
 def create_sinusoidal_pos_embedding(
-    time: torch.tensor, dimension: int, min_period: float, max_period: float, device="cpu"
+        time: torch.tensor, dimension: int, min_period: float, max_period: float, device="cpu"
 ) -> Tensor:
     """Computes sine-cosine positional embedding vectors for scalar positions."""
     if dimension % 2 != 0:
@@ -289,7 +289,7 @@ def aloha_gripper_to_angular(value):
 
     # This is the inverse of the angular to linear transformation inside the Interbotix code.
     def linear_to_radian(linear_position, arm_length, horn_radius):
-        value = (horn_radius**2 + linear_position**2 - arm_length**2) / (2 * horn_radius * linear_position)
+        value = (horn_radius ** 2 + linear_position ** 2 - arm_length ** 2) / (2 * horn_radius * linear_position)
         return safe_arcsin(value)
 
     # The constants are taken from the Interbotix code.
@@ -325,9 +325,9 @@ class SmolVLAPolicy(PreTrainedPolicy):
     name = "smolvla"
 
     def __init__(
-        self,
-        config: SmolVLAConfig,
-        dataset_stats: dict[str, dict[str, Tensor]] | None = None,
+            self,
+            config: SmolVLAConfig,
+            dataset_stats: dict[str, dict[str, Tensor]] | None = None,
     ):
         """
         Args:
@@ -370,11 +370,11 @@ class SmolVLAPolicy(PreTrainedPolicy):
     # HACK(aliberts, danaaubakirova): we overwrite this classmethod here to fix smolVLA-specific issues
     @classmethod
     def _load_as_safetensor(
-        cls,
-        model: "SmolVLAPolicy",
-        model_file: str,
-        map_location: str,
-        strict: bool,
+            cls,
+            model: "SmolVLAPolicy",
+            model_file: str,
+            map_location: str,
+            strict: bool,
     ):
         safetensors.torch.load_model(model, model_file, strict=strict, device=map_location)
         return load_smolvla(
@@ -462,30 +462,55 @@ class SmolVLAPolicy(PreTrainedPolicy):
             batch[ACTION] = self._pi_aloha_encode_actions_inv(batch[ACTION])
         batch = self.normalize_inputs(batch)
         batch = self.normalize_targets(batch)
+
+        batch_size, chunk_size, channels, height, width = batch['observation.image'].shape
+        batch['observation.image'] = batch['observation.image'].view(-1, channels, height, width)
+
         images, img_masks = self.prepare_images(batch)
         state = self.prepare_state(batch)
         lang_tokens, lang_masks = self.prepare_language(batch)
         actions = self.prepare_action(batch)
         actions_is_pad = batch.get("actions_id_pad")
         loss_dict = {}
-        losses = self.model.forward(images, img_masks, lang_tokens, lang_masks, state, actions, noise, time)
+
+        vla_images = [img[::chunk_size] for img in images]
+        vla_img_masks = [img_mask[::chunk_size] for img_mask in img_masks]
+
+        losses = self.model.forward(vla_images, vla_img_masks, lang_tokens, lang_masks, state, actions, noise, time)
         loss_dict["losses_after_forward"] = losses.clone()
 
         vision_model = self.model.vlm_with_expert.vlm.model.vision_model
-        image_hidden_states = (
+        p_image_hidden_states = (
             vision_model(
-                pixel_values=images[0].to(dtype=vision_model.dtype),
+                pixel_values=images[0],
             )
             .last_hidden_state
         ).float()
-        p_hidden_states = image_hidden_states[:-1]
-        p_action = batch[ACTION][:-1, :1, :]
-        p_state = batch[OBS_STATE][:-1]
+        p_image_hidden_states = p_image_hidden_states.reshape(batch_size, chunk_size, p_image_hidden_states.size(1),
+                                                              p_image_hidden_states.size(2))
+        p_state = batch[OBS_STATE]
+        p_actions = batch[ACTION]
 
-        prediction = self.predictor(p_hidden_states, p_action, p_state)
-        loss_pred = torch.nn.functional.l1_loss(prediction, image_hidden_states[1:])
+        p_losses = []
+        for i in range(batch_size):
+            p_teacher_forcing_hidden_states = p_image_hidden_states[i, :-1]
+            p_teacher_forcing_action = p_actions[i, :-1].unsqueeze(1)
+            p_teacher_forcing_state = p_state[i, :-1].unsqueeze(1)
+            p_teacher_forcing = self.predictor(p_teacher_forcing_hidden_states, p_teacher_forcing_action,
+                                               p_teacher_forcing_state)
+            p_teacher_forcing = torch.nn.functional.layer_norm(p_teacher_forcing, (p_image_hidden_states[i].size(-1),))
+            loss_p_teacher_forcing = torch.nn.functional.l1_loss(p_teacher_forcing, p_image_hidden_states[i, 1:])
 
-        # TODO: implement rollout loss
+            p_rollout_hidden_states = p_image_hidden_states[i, -2:-1]
+            p_rollout_action = batch[ACTION][i, -2:-1].unsqueeze(1)
+            p_rollout_state = batch[OBS_STATE][i, -2:-1].unsqueeze(1)
+            p_rollout = self.predictor(p_rollout_hidden_states, p_rollout_action, p_rollout_state)
+            p_rollout = torch.nn.functional.layer_norm(p_rollout, (p_image_hidden_states[i].size(-1),))
+            loss_p_rollout = torch.nn.functional.l1_loss(p_rollout, p_image_hidden_states[i, -1:])
+
+            p_losses.append(loss_p_teacher_forcing + loss_p_rollout)
+
+        p_losses = torch.stack(p_losses)
 
         if actions_is_pad is not None:
             in_episode_bound = ~actions_is_pad
@@ -497,7 +522,7 @@ class SmolVLAPolicy(PreTrainedPolicy):
         loss_dict["losses_after_rm_padding"] = losses.clone()
 
         # For backward pass
-        loss = losses.mean() + loss_pred
+        loss = losses.mean() + p_losses.mean()
         # For backward pass
         loss_dict["loss"] = loss.item()
         return loss, loss_dict
@@ -716,7 +741,7 @@ class VLAFlowMatching(nn.Module):
         return time
 
     def embed_prefix(
-        self, images, img_masks, lang_tokens, lang_masks, state: torch.Tensor = None
+            self, images, img_masks, lang_tokens, lang_masks, state: torch.Tensor = None
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Embed images with SigLIP and language tokens with embedding layer to prepare
         for SmolVLM transformer processing.
@@ -725,8 +750,8 @@ class VLAFlowMatching(nn.Module):
         pad_masks = []
         att_masks = []
         for _img_idx, (
-            img,
-            img_mask,
+                img,
+                img_mask,
         ) in enumerate(zip(images, img_masks, strict=False)):
             if self.add_image_special_tokens:
                 image_start_token = (
@@ -748,7 +773,7 @@ class VLAFlowMatching(nn.Module):
 
             # Normalize image embeddings
             img_emb_dim = img_emb.shape[-1]
-            img_emb = img_emb * torch.tensor(img_emb_dim**0.5, dtype=img_emb.dtype, device=img_emb.device)
+            img_emb = img_emb * torch.tensor(img_emb_dim ** 0.5, dtype=img_emb.dtype, device=img_emb.device)
 
             bsize, num_img_embs = img_emb.shape[:2]
             img_mask = img_mask[:, None].expand(bsize, num_img_embs)
@@ -853,7 +878,7 @@ class VLAFlowMatching(nn.Module):
         return embs, pad_masks, att_masks
 
     def forward(
-        self, images, img_masks, lang_tokens, lang_masks, state, actions, noise=None, time=None
+            self, images, img_masks, lang_tokens, lang_masks, state, actions, noise=None, time=None
     ) -> Tensor:
         """Do a full training forward pass and compute the loss (batch_size x num_steps x num_motors)"""
         if noise is None:
@@ -883,7 +908,7 @@ class VLAFlowMatching(nn.Module):
             use_cache=False,
             fill_kv_cache=False,
         )
-        suffix_out = suffix_out[:, -self.config.chunk_size :]
+        suffix_out = suffix_out[:, -self.config.chunk_size:]
         # Original openpi code, upcast attention output
         suffix_out = suffix_out.to(dtype=torch.float32)
         v_t = self.action_out_proj(suffix_out)
@@ -932,11 +957,11 @@ class VLAFlowMatching(nn.Module):
         return x_t
 
     def denoise_step(
-        self,
-        prefix_pad_masks,
-        past_key_values,
-        x_t,
-        timestep,
+            self,
+            prefix_pad_masks,
+            past_key_values,
+            x_t,
+            timestep,
     ):
         """Apply one denoising step of the noise `x_t` at a given timestep."""
         suffix_embs, suffix_pad_masks, suffix_att_masks = self.embed_suffix(x_t, timestep)
@@ -961,7 +986,7 @@ class VLAFlowMatching(nn.Module):
             fill_kv_cache=False,
         )
         suffix_out = outputs_embeds[1]
-        suffix_out = suffix_out[:, -self.config.chunk_size :]
+        suffix_out = suffix_out[:, -self.config.chunk_size:]
         suffix_out = suffix_out.to(dtype=torch.float32)
         v_t = self.action_out_proj(suffix_out)
         return v_t
