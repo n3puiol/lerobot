@@ -482,7 +482,7 @@ class SmolVLAPolicy(PreTrainedPolicy):
         vision_model = self.model.vlm_with_expert.vlm.model.vision_model
         p_image_hidden_states = (
             vision_model(
-                pixel_values=images[0],
+                pixel_values=images[0].to(dtype=vision_model.dtype),
             )
             .last_hidden_state
         ).float()
