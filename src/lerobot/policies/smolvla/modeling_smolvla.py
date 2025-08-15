@@ -499,14 +499,14 @@ class SmolVLAPolicy(PreTrainedPolicy):
         p_teacher_forcing = torch.nn.functional.layer_norm(p_teacher_forcing, (p_image_hidden_states.size(-1),))
         loss_p_teacher_forcing = torch.nn.functional.l1_loss(p_teacher_forcing, p_image_hidden_states[:, 1:].flatten(1,2))
 
-        p_rollout_hidden_states = p_image_hidden_states[:, -2:-1].flatten(1, 2)
-        p_rollout_action = batch[ACTION][:, -2:-1]
-        p_rollout_state = batch[OBS_STATE][:, -2:-1]
-        p_rollout = self.predictor(p_rollout_hidden_states, p_rollout_action, p_rollout_state)
-        p_rollout = torch.nn.functional.layer_norm(p_rollout, (p_image_hidden_states.size(-1),))
-        loss_p_rollout = torch.nn.functional.l1_loss(p_rollout, p_image_hidden_states[:, -1:].flatten(1,2))
+        # p_rollout_hidden_states = p_image_hidden_states[:, -2:-1].flatten(1, 2)
+        # p_rollout_action = batch[ACTION][:, -2:-1]
+        # p_rollout_state = batch[OBS_STATE][:, -2:-1]
+        # p_rollout = self.predictor(p_rollout_hidden_states, p_rollout_action, p_rollout_state)
+        # p_rollout = torch.nn.functional.layer_norm(p_rollout, (p_image_hidden_states.size(-1),))
+        # loss_p_rollout = torch.nn.functional.l1_loss(p_rollout, p_image_hidden_states[:, -1:].flatten(1,2))
 
-        p_losses = loss_p_teacher_forcing + loss_p_rollout
+        p_losses = loss_p_teacher_forcing
 
         if actions_is_pad is not None:
             in_episode_bound = ~actions_is_pad
