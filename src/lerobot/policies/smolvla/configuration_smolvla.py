@@ -70,6 +70,7 @@ class SmolVLAConfig(PreTrainedConfig):
     freeze_vision_encoder: bool = True
     train_expert_only: bool = True
     train_state_proj: bool = True
+    train_reward_proj: bool = False
 
     # Training presets
     optimizer_lr: float = 1e-4
@@ -150,5 +151,5 @@ class SmolVLAConfig(PreTrainedConfig):
         return list(range(self.chunk_size))
 
     @property
-    def reward_delta_indices(self) -> None:
-        return None
+    def reward_delta_indices(self) -> list | None:
+        return list(range(self.chunk_size)) if self.train_reward_proj else None
